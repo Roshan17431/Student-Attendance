@@ -3,7 +3,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DatabaseManager {
-    private static final String URL = "jdbc:mysql://localhost:3306/Attendance";
+    private static final String URL = "jdbc:mysql://localhost:3306/student_attendance_db";
     private static final String USER = "root";
     private static final String PASSWORD = "roshan17";
 
@@ -11,6 +11,7 @@ public class DatabaseManager {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
         } catch (ClassNotFoundException e) {
+            System.err.println("JDBC Driver not found.");
             e.printStackTrace();
         }
         return DriverManager.getConnection(URL, USER, PASSWORD);
