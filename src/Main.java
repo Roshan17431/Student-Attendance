@@ -1,16 +1,25 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Vector;
 
 public class Main extends JFrame {
     private JTabbedPane tabbedPane;
-    private JPanel studentPanel, attendancePanel, reportPanel;
+    private JPanel loginPanel, studentPanel, attendancePanel, reportPanel, teacherPanel, subjectPanel, userPanel;
+
+    // Login components
+    private JTextField usernameField;
+    private JPasswordField passwordField;
+    private JComboBox<String> roleComboBox;
+    private JButton loginBtn;
+
+    // Current user info
+    private String currentUser;
+    private String currentRole;
+    private int currentUserId;
 
     // --- Student Management ---
     private JTextField firstNameField, lastNameField, rollField, studentSearchField;
@@ -31,39 +40,227 @@ public class Main extends JFrame {
     private JComboBox<String> reportSubjectComboBox;
     private JSpinner reportFromDate, reportToDate;
 
+    // --- Teacher Management ---
+    private JTextField teacherFirstNameField, teacherLastNameField, teacherEmailField;
+    private JButton addTeacherBtn, updateTeacherBtn, deleteTeacherBtn;
+    private JTable teacherTable;
+    private DefaultTableModel teacherTableModel;
+
+    // --- Subject Management ---
+    private JTextField subjectNameField;
+    private JButton addSubjectBtn, deleteSubjectBtn;
+    private JTable subjectTable;
+    private DefaultTableModel subjectTableModel;
+
+    // --- User Management ---
+    private JComboBox<String> userRoleComboBox;
+    private JTextField newUsernameField;
+    private JPasswordField newPasswordField;
+    private JButton createUserBtn;
+    private JTable userTable;
+    private DefaultTableModel userTableModel;
+
     public Main() {
         setTitle("Student Attendance System");
         setSize(1100, 720);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
+        // Create login panel first
+        loginPanel = createLoginPanel();
+        add(loginPanel);
+
+        setVisible(true);
+    }
+
+    private JPanel createLoginPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        JLabel titleLabel = new JLabel("Student Attendance System", JLabel.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+
+        JLabel usernameLabel = new JLabel("Username:");
+        usernameField = new JTextField(15);
+
+        JLabel passwordLabel = new JLabel("Password:");
+        passwordField = new JPasswordField(15);
+
+        JLabel roleLabel = new JLabel("Role:");
+        roleComboBox = new JComboBox<>(new String[]{"Admin", "Teacher", "Student"});
+
+        loginBtn = new JButton("Login");
+
+        gbc.gridwidth = 2;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        panel.add(titleLabel, gbc);
+
+        gbc.gridwidth = 1;
+        gbc.gridy = 1;
+        panel.add(usernameLabel, gbc);
+
+        gbc.gridx = 1;
+        panel.add(usernameField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        panel.add(passwordLabel, gbc);
+
+        gbc.gridx = 1;
+        panel.add(passwordField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        panel.add(roleLabel, gbc);
+
+        gbc.gridx = 1;
+        panel.add(roleComboBox, gbc);
+
+        gbc.gridwidth = 2;
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        panel.add(loginBtn, gbc);
+
+        loginBtn.addActionListener(e -> login());
+
+        // Enter key to login
+        passwordField.addActionListener(e -> login());
+
+        return panel;
+    }
+
+    private void login() {
+        String username = usernameField.getText().trim();
+        String password = new String(passwordField.getPassword());
+        String role = (String) roleComboBox.getSelectedItem();
+
+        if (username.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter username and password.");
+            return;
+        }
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            String sql = "SELECT * FROM users WHERE username = ? AND password = ? AND role = ?";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setString(1, username);
+            stmt.setString(2, password);
+            stmt.setString(3, role);
+
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                currentUser = username;
+                currentRole = role;
+                currentUserId = rs.getInt("user_id");
+
+                // Remove login panel and show main application
+                remove(loginPanel);
+                initializeMainApplication();
+
+                JOptionPane.showMessageDialog(this, "Login successful! Welcome " + username);
+            } else {
+                JOptionPane.showMessageDialog(this, "Invalid username, password, or role.");
+            }
+        } catch (SQLException ex) {
+            showError("Login", ex);
+        }
+    }
+
+    private void initializeMainApplication() {
         tabbedPane = new JTabbedPane();
-        studentPanel = createStudentPanel();
-        attendancePanel = createAttendancePanel();
-        reportPanel = createReportPanel();
 
-        tabbedPane.addTab("Student Management", studentPanel);
-        tabbedPane.addTab("Attendance", attendancePanel);
-        tabbedPane.addTab("Attendance Reporting", reportPanel);
-        add(tabbedPane);
+        // Create panels based on user role
+        if ("Admin".equals(currentRole)) {
+            studentPanel = createStudentPanel();
+            teacherPanel = createTeacherPanel();
+            subjectPanel = createSubjectPanel();
+            userPanel = createUserPanel();
+            attendancePanel = createAttendancePanel();
+            reportPanel = createReportPanel();
 
-        // Initial load
-        loadSubjects();
-        loadStudents();
-        populateAttendanceTable();
+            tabbedPane.addTab("Student Management", studentPanel);
+            tabbedPane.addTab("Teacher Management", teacherPanel);
+            tabbedPane.addTab("Subject Management", subjectPanel);
+            tabbedPane.addTab("User Management", userPanel);
+            tabbedPane.addTab("Attendance", attendancePanel);
+            tabbedPane.addTab("Reports", reportPanel);
+
+            // Load data for admin
+            loadStudents();
+            loadTeachers();
+            loadSubjects();
+            loadUsers();
+        } else if ("Teacher".equals(currentRole)) {
+            attendancePanel = createAttendancePanel();
+            reportPanel = createReportPanel();
+
+            tabbedPane.addTab("Attendance", attendancePanel);
+            tabbedPane.addTab("Reports", reportPanel);
+        } else if ("Student".equals(currentRole)) {
+            reportPanel = createReportPanel();
+
+            // For students, automatically fill their roll number
+            try (Connection conn = DatabaseManager.getConnection()) {
+                String sql = "SELECT student_roll FROM students WHERE user_id = ?";
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                stmt.setInt(1, currentUserId);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    reportStudentRollField.setText(rs.getString("student_roll"));
+                    reportStudentRollField.setEditable(false);
+                }
+            } catch (SQLException ex) {
+                showError("Loading student info", ex);
+            }
+
+            tabbedPane.addTab("My Attendance", reportPanel);
+        }
+
+        // Add logout button
+        JButton logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> logout());
+
+        JPanel southPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        southPanel.add(new JLabel("Logged in as: " + currentUser + " (" + currentRole + ")"));
+        southPanel.add(logoutBtn);
+
+        setLayout(new BorderLayout());
+        add(tabbedPane, BorderLayout.CENTER);
+        add(southPanel, BorderLayout.SOUTH);
+
+        // Load common data
         loadSubjectsForReports();
+        populateAttendanceTable();
 
         // Row select -> fill form
-        studentTable.addMouseListener(new MouseAdapter() {
-            public void mouseClicked(MouseEvent e) {
-                int r = studentTable.getSelectedRow();
-                if (r != -1) {
-                    firstNameField.setText(studentTableModel.getValueAt(r, 1).toString());
-                    lastNameField.setText(studentTableModel.getValueAt(r, 2).toString());
-                    rollField.setText(studentTableModel.getValueAt(r, 3).toString());
+        if (studentTable != null) {
+            studentTable.addMouseListener(new MouseAdapter() {
+                public void mouseClicked(MouseEvent e) {
+                    int r = studentTable.getSelectedRow();
+                    if (r != -1) {
+                        firstNameField.setText(studentTableModel.getValueAt(r, 1).toString());
+                        lastNameField.setText(studentTableModel.getValueAt(r, 2).toString());
+                        rollField.setText(studentTableModel.getValueAt(r, 3).toString());
+                    }
                 }
-            }
-        });
+            });
+        }
+
+        if (teacherTable != null) {
+            teacherTable.addMouseListener(new MouseAdapter() {
+                public void mouseClicked(MouseEvent e) {
+                    int r = teacherTable.getSelectedRow();
+                    if (r != -1) {
+                        teacherFirstNameField.setText(teacherTableModel.getValueAt(r, 1).toString());
+                        teacherLastNameField.setText(teacherTableModel.getValueAt(r, 2).toString());
+                        teacherEmailField.setText(teacherTableModel.getValueAt(r, 3).toString());
+                    }
+                }
+            });
+        }
 
         tabbedPane.addChangeListener(e -> {
             if (tabbedPane.getSelectedComponent() == attendancePanel) {
@@ -73,7 +270,23 @@ public class Main extends JFrame {
             }
         });
 
-        setVisible(true);
+        revalidate();
+        repaint();
+    }
+
+    private void logout() {
+        currentUser = null;
+        currentRole = null;
+        currentUserId = -1;
+
+        remove(tabbedPane);
+        add(loginPanel);
+        usernameField.setText("");
+        passwordField.setText("");
+        roleComboBox.setSelectedIndex(0);
+
+        revalidate();
+        repaint();
     }
 
     // ----------------- Panels -----------------
@@ -121,6 +334,91 @@ public class Main extends JFrame {
         return panel;
     }
 
+    private JPanel createTeacherPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        JPanel form = new JPanel(new GridLayout(4, 2, 8, 8));
+
+        teacherFirstNameField = new JTextField();
+        teacherLastNameField  = new JTextField();
+        teacherEmailField     = new JTextField();
+
+        addTeacherBtn    = new JButton("Add");
+        updateTeacherBtn = new JButton("Update");
+        deleteTeacherBtn = new JButton("Delete");
+
+        form.add(new JLabel("First Name:"));  form.add(teacherFirstNameField);
+        form.add(new JLabel("Last Name:"));   form.add(teacherLastNameField);
+        form.add(new JLabel("Email:"));       form.add(teacherEmailField);
+        form.add(addTeacherBtn);              form.add(updateTeacherBtn);
+
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        south.add(deleteTeacherBtn);
+
+        teacherTableModel = new DefaultTableModel(new String[]{"ID","First Name","Last Name","Email"}, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        teacherTable = new JTable(teacherTableModel);
+
+        addTeacherBtn.addActionListener(e -> addTeacher());
+        updateTeacherBtn.addActionListener(e -> updateTeacher());
+        deleteTeacherBtn.addActionListener(e -> deleteTeacher());
+
+        panel.add(form, BorderLayout.NORTH);
+        panel.add(new JScrollPane(teacherTable), BorderLayout.CENTER);
+        panel.add(south, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel createSubjectPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        JPanel form = new JPanel(new GridLayout(2, 2, 8, 8));
+
+        subjectNameField = new JTextField();
+        addSubjectBtn = new JButton("Add Subject");
+        deleteSubjectBtn = new JButton("Delete Selected");
+
+        form.add(new JLabel("Subject Name:"));  form.add(subjectNameField);
+        form.add(addSubjectBtn);                form.add(deleteSubjectBtn);
+
+        subjectTableModel = new DefaultTableModel(new String[]{"ID", "Subject Name"}, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        subjectTable = new JTable(subjectTableModel);
+
+        addSubjectBtn.addActionListener(e -> addSubject());
+        deleteSubjectBtn.addActionListener(e -> deleteSubject());
+
+        panel.add(form, BorderLayout.NORTH);
+        panel.add(new JScrollPane(subjectTable), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createUserPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        JPanel form = new JPanel(new GridLayout(3, 2, 8, 8));
+
+        newUsernameField = new JTextField();
+        newPasswordField = new JPasswordField();
+        userRoleComboBox = new JComboBox<>(new String[]{"Admin", "Teacher", "Student"});
+        createUserBtn = new JButton("Create User");
+
+        form.add(new JLabel("Username:"));  form.add(newUsernameField);
+        form.add(new JLabel("Password:"));  form.add(newPasswordField);
+        form.add(new JLabel("Role:"));      form.add(userRoleComboBox);
+        form.add(createUserBtn);
+
+        userTableModel = new DefaultTableModel(new String[]{"ID", "Username", "Role"}, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        userTable = new JTable(userTableModel);
+
+        createUserBtn.addActionListener(e -> createUser());
+
+        panel.add(form, BorderLayout.NORTH);
+        panel.add(new JScrollPane(userTable), BorderLayout.CENTER);
+        return panel;
+    }
+
     private JPanel createAttendancePanel() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -135,10 +433,16 @@ public class Main extends JFrame {
         top.add(markAttendanceBtn);
 
         attendanceTable = new JTable(new DefaultTableModel(new String[]{"Student ID","First Name","Last Name","Roll No.","Status"}, 0) {
-            public boolean isCellEditable(int r, int c) { return c == 4; }
+            public boolean isCellEditable(int r, int c) {
+                // Only teachers and admins can mark attendance
+                return ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) && c == 4;
+            }
         });
-        JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Present","Absent"});
-        attendanceTable.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(statusCombo));
+
+        if ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) {
+            JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Present","Absent"});
+            attendanceTable.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(statusCombo));
+        }
 
         markAttendanceBtn.addActionListener(e -> markAttendance());
 
@@ -165,7 +469,8 @@ public class Main extends JFrame {
         top.add(new JLabel("To:"));          top.add(reportToDate);
         top.add(generateReportBtn);
 
-        reportArea = new JTextArea(); reportArea.setEditable(false);
+        reportArea = new JTextArea();
+        reportArea.setEditable(false);
         generateReportBtn.addActionListener(e -> generateReport());
 
         panel.add(top, BorderLayout.NORTH);
@@ -274,6 +579,158 @@ public class Main extends JFrame {
         } catch (SQLException ex) { showError("Searching", ex); }
     }
 
+    // --------------- Teacher Logic ---------------
+    private void loadTeachers() {
+        teacherTableModel.setRowCount(0);
+        String sql = "SELECT * FROM teachers ORDER BY teacher_id";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                teacherTableModel.addRow(new Object[]{
+                        rs.getInt("teacher_id"),
+                        rs.getString("first_name"),
+                        rs.getString("last_name"),
+                        rs.getString("email")
+                });
+            }
+        } catch (SQLException ex) {
+            showError("Loading teachers", ex);
+        }
+    }
+
+    private void addTeacher() {
+        String f = teacherFirstNameField.getText().trim();
+        String l = teacherLastNameField.getText().trim();
+        String e = teacherEmailField.getText().trim();
+        if (f.isEmpty() || l.isEmpty() || e.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "All fields are required."); return;
+        }
+        String sql = "INSERT INTO teachers(first_name,last_name,email) VALUES(?,?,?)";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, f); ps.setString(2, l); ps.setString(3, e);
+            ps.executeUpdate();
+            JOptionPane.showMessageDialog(this, "Teacher added.");
+            teacherFirstNameField.setText(""); teacherLastNameField.setText(""); teacherEmailField.setText("");
+            loadTeachers();
+        } catch (SQLException ex) { showError("Adding teacher", ex); }
+    }
+
+    private void updateTeacher() {
+        int row = teacherTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a teacher."); return; }
+        int id = (int) teacherTableModel.getValueAt(row, 0);
+        String f = teacherFirstNameField.getText().trim();
+        String l = teacherLastNameField.getText().trim();
+        String e = teacherEmailField.getText().trim();
+        if (f.isEmpty() || l.isEmpty() || e.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "All fields are required."); return;
+        }
+        String sql = "UPDATE teachers SET first_name=?, last_name=?, email=? WHERE teacher_id=?";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, f); ps.setString(2, l); ps.setString(3, e); ps.setInt(4, id);
+            if (ps.executeUpdate() > 0) {
+                JOptionPane.showMessageDialog(this, "Updated.");
+                loadTeachers();
+            }
+        } catch (SQLException ex) { showError("Updating teacher", ex); }
+    }
+
+    private void deleteTeacher() {
+        int row = teacherTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a teacher."); return; }
+        int id = (int) teacherTableModel.getValueAt(row, 0);
+        if (JOptionPane.showConfirmDialog(this, "Delete this teacher?", "Confirm",
+                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement("DELETE FROM teachers WHERE teacher_id=?")) {
+            ps.setInt(1, id);
+            ps.executeUpdate();
+            JOptionPane.showMessageDialog(this, "Deleted.");
+            loadTeachers();
+        } catch (SQLException ex) { showError("Deleting teacher", ex); }
+    }
+
+    // --------------- Subject Logic ---------------
+
+
+    private void addSubject() {
+        String name = subjectNameField.getText().trim();
+        if (name.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Subject name is required."); return;
+        }
+        String sql = "INSERT INTO subjects(subject_name) VALUES(?)";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ps.executeUpdate();
+            JOptionPane.showMessageDialog(this, "Subject added.");
+            subjectNameField.setText("");
+            loadSubjects();
+            loadSubjectsForReports();
+        } catch (SQLException ex) { showError("Adding subject", ex); }
+    }
+
+    private void deleteSubject() {
+        int row = subjectTable.getSelectedRow();
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a subject."); return; }
+        int id = (int) subjectTableModel.getValueAt(row, 0);
+        if (JOptionPane.showConfirmDialog(this, "Delete this subject?", "Confirm",
+                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement("DELETE FROM subjects WHERE subject_id=?")) {
+            ps.setInt(1, id);
+            ps.executeUpdate();
+            JOptionPane.showMessageDialog(this, "Deleted.");
+            loadSubjects();
+            loadSubjectsForReports();
+        } catch (SQLException ex) { showError("Deleting subject", ex); }
+    }
+
+    // --------------- User Logic ---------------
+    private void loadUsers() {
+        userTableModel.setRowCount(0);
+        String sql = "SELECT * FROM users ORDER BY user_id";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                userTableModel.addRow(new Object[]{
+                        rs.getInt("user_id"),
+                        rs.getString("username"),
+                        rs.getString("role")
+                });
+            }
+        } catch (SQLException ex) {
+            showError("Loading users", ex);
+        }
+    }
+
+    private void createUser() {
+        String username = newUsernameField.getText().trim();
+        String password = new String(newPasswordField.getPassword());
+        String role = (String) userRoleComboBox.getSelectedItem();
+
+        if (username.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Username and password are required."); return;
+        }
+
+        String sql = "INSERT INTO users(username, password, role) VALUES(?, ?, ?)";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ps.setString(2, password);
+            ps.setString(3, role);
+            ps.executeUpdate();
+            JOptionPane.showMessageDialog(this, "User created.");
+            newUsernameField.setText("");
+            newPasswordField.setText("");
+            loadUsers();
+        } catch (SQLException ex) { showError("Creating user", ex); }
+    }
+
     // --------------- Subjects ---------------
     private void loadSubjects() {
         subjectComboBox.removeAllItems();
@@ -303,11 +760,17 @@ public class Main extends JFrame {
     // --------------- Attendance ---------------
     private void populateAttendanceTable() {
         DefaultTableModel m = new DefaultTableModel(new String[]{"Student ID","First Name","Last Name","Roll No.","Status"}, 0) {
-            public boolean isCellEditable(int r, int c) { return c == 4; }
+            public boolean isCellEditable(int r, int c) {
+                // Only teachers and admins can mark attendance
+                return ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) && c == 4;
+            }
         };
         attendanceTable.setModel(m);
-        JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Present","Absent"});
-        attendanceTable.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(statusCombo));
+
+        if ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) {
+            JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Present","Absent"});
+            attendanceTable.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(statusCombo));
+        }
 
         String sql = "SELECT student_id, first_name, last_name, student_roll FROM students ORDER BY student_id";
         try (Connection c = DatabaseManager.getConnection();
@@ -326,6 +789,12 @@ public class Main extends JFrame {
     }
 
     private void markAttendance() {
+        // Only teachers and admins can mark attendance
+        if (!("Teacher".equals(currentRole) || "Admin".equals(currentRole))) {
+            JOptionPane.showMessageDialog(this, "You don't have permission to mark attendance.");
+            return;
+        }
+
         String subjectName = (String) subjectComboBox.getSelectedItem();
         Date d = (Date) dateSpinner.getValue();
         if (subjectName == null) { JOptionPane.showMessageDialog(this, "Add subjects first."); return; }
@@ -393,6 +862,26 @@ public class Main extends JFrame {
         String subject = (String) reportSubjectComboBox.getSelectedItem();
         Date from = (Date) reportFromDate.getValue();
         Date to   = (Date) reportToDate.getValue();
+
+        // For students, they can only view their own attendance
+        if ("Student".equals(currentRole)) {
+            try (Connection conn = DatabaseManager.getConnection()) {
+                String sql = "SELECT student_roll FROM students WHERE user_id = ?";
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                stmt.setInt(1, currentUserId);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    String studentRoll = rs.getString("student_roll");
+                    if (!studentRoll.equals(roll)) {
+                        JOptionPane.showMessageDialog(this, "You can only view your own attendance.");
+                        return;
+                    }
+                }
+            } catch (SQLException ex) {
+                showError("Checking student permission", ex);
+                return;
+            }
+        }
 
         if (roll.isEmpty() || subject == null) {
             JOptionPane.showMessageDialog(this, "Enter roll and select subject."); return;
