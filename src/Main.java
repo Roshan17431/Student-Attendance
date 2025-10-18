@@ -5,7 +5,6 @@ import java.awt.event.*;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Vector;
 
 public class Main extends JFrame {
 
@@ -22,6 +21,7 @@ public class Main extends JFrame {
     private String currentUser;
     private String currentRole;
     private int currentUserId;
+    private JLabel lblLoggedInAs;
 
     // Student Management Components
     private JTextField firstNameField, lastNameField, rollField, studentSearchField;
@@ -32,6 +32,7 @@ public class Main extends JFrame {
     // Attendance Management Components
     private JComboBox<String> subjectComboBox;
     private JSpinner dateSpinner;
+    private JSpinner sessionNumberSpinner;
     private JTable attendanceTable;
     private JButton markAttendanceBtn;
     private DefaultTableModel attendanceTableModel;
@@ -150,18 +151,19 @@ public class Main extends JFrame {
             String sql = "SELECT * FROM users WHERE username = ? AND password = ? AND role = ?";
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setString(1, username);
-            stmt.setString(2, password); // In a real application, you should hash passwords
+            stmt.setString(2, password);
             stmt.setString(3, role);
 
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
                 currentUser = username;
-                currentRole = role;
+                currentRole = rs.getString("role");
                 currentUserId = rs.getInt("user_id");
 
                 // Remove login panel and show main application
                 remove(loginPanel);
                 initializeMainApplication();
+                lblLoggedInAs.setText("Logged in as: " + currentUser + " (" + currentRole + ")");
 
                 JOptionPane.showMessageDialog(this, "Login successful! Welcome " + username);
             } else {
@@ -198,7 +200,6 @@ public class Main extends JFrame {
             tabbedPane.addTab("Reports", reportPanel);
         } else if ("Student".equals(currentRole)) {
             reportPanel = createReportPanel();
-
             // For students, automatically fill their roll number
             try (Connection conn = DatabaseManager.getConnection()) {
                 String sql = "SELECT student_roll FROM students WHERE user_id = ?";
@@ -220,8 +221,11 @@ public class Main extends JFrame {
         JButton logoutBtn = new JButton("Logout");
         logoutBtn.addActionListener(e -> logout());
 
+        lblLoggedInAs = new JLabel();
+        logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> logout());
         JPanel southPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        southPanel.add(new JLabel("Logged in as: " + currentUser + " (" + currentRole + ")"));
+        southPanel.add(lblLoggedInAs);
         southPanel.add(logoutBtn);
 
         setLayout(new BorderLayout());
@@ -232,9 +236,14 @@ public class Main extends JFrame {
         if ("Admin".equals(currentRole)) {
             loadStudents();
             loadTeachers();
-            loadSubjects(); // This is the fixed method
+            loadSubjects();
             loadUsers();
+        } else if ("Teacher".equals(currentRole)) {
+            loadTeacherSubjects(); // Load teacher's assigned subjects
         }
+
+        // Load common data
+        loadSubjectsForReports();
 
         // Listeners for populating tables when a tab is selected
         tabbedPane.addChangeListener(e -> {
@@ -251,8 +260,6 @@ public class Main extends JFrame {
             }
             if (tabbedPane.getSelectedComponent() == attendancePanel) {
                 populateAttendanceTable();
-            } else if (tabbedPane.getSelectedComponent() == reportPanel) {
-                // The loadSubjectsForReports method is no longer needed
             }
         });
 
@@ -309,11 +316,39 @@ public class Main extends JFrame {
         repaint();
     }
 
+    // NEW METHOD: Load teacher's assigned subjects
+    private void loadTeacherSubjects() {
+        subjectComboBox.removeAllItems();
+        try (Connection conn = DatabaseManager.getConnection()) {
+            String sql = """
+                SELECT DISTINCT s.subject_id, s.subject_name 
+                FROM subjects s
+                JOIN teacher_subjects ts ON s.subject_id = ts.subject_id
+                JOIN teachers t ON ts.teacher_id = t.teacher_id
+                WHERE t.user_id = ?
+                ORDER BY s.subject_name
+                """;
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, currentUserId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                subjectComboBox.addItem(rs.getString("subject_name"));
+            }
+
+            if (subjectComboBox.getItemCount() == 0) {
+                JOptionPane.showMessageDialog(this, "No subjects assigned to you. Please contact administrator.");
+            }
+        } catch (SQLException ex) {
+            showError("Loading teacher subjects", ex);
+        }
+    }
+
     private void logout() {
         currentUser = null;
         currentRole = null;
         currentUserId = -1;
-
+        lblLoggedInAs.setText("");
         remove(tabbedPane);
         add(loginPanel);
         usernameField.setText("");
@@ -463,21 +498,25 @@ public class Main extends JFrame {
         subjectComboBox = new JComboBox<>();
         dateSpinner = new JSpinner(new SpinnerDateModel(new Date(), null, null, java.util.Calendar.DAY_OF_MONTH));
         dateSpinner.setEditor(new JSpinner.DateEditor(dateSpinner, "yyyy-MM-dd"));
+
+        sessionNumberSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
+
         markAttendanceBtn = new JButton("Save Attendance for this Session");
 
         top.add(new JLabel("Subject:")); top.add(subjectComboBox);
         top.add(new JLabel("Date:"));    top.add(dateSpinner);
+        top.add(new JLabel("Class No:")); top.add(sessionNumberSpinner);
         top.add(markAttendanceBtn);
 
-        attendanceTable = new JTable(new DefaultTableModel(new String[]{"Student ID","First Name","Last Name","Roll No.","Status"}, 0) {
+        attendanceTable = new JTable(new DefaultTableModel(new String[]{"Student ID","First Name","Last Name","Roll No.","Class","Status"}, 0) {
             public boolean isCellEditable(int r, int c) {
-                return ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) && c == 4;
+                return ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) && c == 5;
             }
         });
 
         if ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) {
             JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Present","Absent"});
-            attendanceTable.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(statusCombo));
+            attendanceTable.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(statusCombo));
         }
 
         markAttendanceBtn.addActionListener(e -> markAttendance());
@@ -777,7 +816,7 @@ public class Main extends JFrame {
         try (Connection c = DatabaseManager.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, username);
-            ps.setString(2, password); // In a real application, you should hash passwords
+            ps.setString(2, password);
             ps.setString(3, role);
             ps.executeUpdate();
             JOptionPane.showMessageDialog(this, "User created.");
@@ -804,32 +843,63 @@ public class Main extends JFrame {
 
     // --------------- Attendance ---------------
     private void populateAttendanceTable() {
-        DefaultTableModel m = new DefaultTableModel(new String[]{"Student ID","First Name","Last Name","Roll No.","Status"}, 0) {
+        DefaultTableModel m = new DefaultTableModel(new String[]{"Student ID","First Name","Last Name","Roll No.","Class","Status"}, 0) {
             public boolean isCellEditable(int r, int c) {
-                return ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) && c == 4;
+                return ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) && c == 5;
             }
         };
         attendanceTable.setModel(m);
 
         if ("Teacher".equals(currentRole) || "Admin".equals(currentRole)) {
             JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Present","Absent"});
-            attendanceTable.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(statusCombo));
+            attendanceTable.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(statusCombo));
         }
 
-        String sql = "SELECT student_id, first_name, last_name, student_roll FROM students ORDER BY student_id";
+        String sql;
+        if ("Teacher".equals(currentRole)) {
+            // For teachers: only show students from their assigned classes
+            sql = """
+                SELECT DISTINCT s.student_id, s.first_name, s.last_name, s.student_roll, s.class
+                FROM students s
+                JOIN teacher_subjects ts ON s.class = ts.class
+                JOIN teachers t ON ts.teacher_id = t.teacher_id
+                JOIN subjects sub ON ts.subject_id = sub.subject_id
+                WHERE t.user_id = ? AND sub.subject_name = ?
+                ORDER BY s.student_roll
+                """;
+        } else {
+            // For admin: show all students
+            sql = "SELECT student_id, first_name, last_name, student_roll, class FROM students ORDER BY student_id";
+        }
+
         try (Connection c = DatabaseManager.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                m.addRow(new Object[]{
-                        rs.getInt("student_id"),
-                        rs.getString("first_name"),
-                        rs.getString("last_name"),
-                        rs.getString("student_roll"),
-                        "Present"
-                });
+             PreparedStatement ps = c.prepareStatement(sql)) {
+
+            if ("Teacher".equals(currentRole)) {
+                String selectedSubject = (String) subjectComboBox.getSelectedItem();
+                if (selectedSubject == null || selectedSubject.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Please select a subject first.");
+                    return;
+                }
+                ps.setInt(1, currentUserId);
+                ps.setString(2, selectedSubject);
             }
-        } catch (SQLException ex) { showError("Loading students for attendance", ex); }
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    m.addRow(new Object[]{
+                            rs.getInt("student_id"),
+                            rs.getString("first_name"),
+                            rs.getString("last_name"),
+                            rs.getString("student_roll"),
+                            rs.getString("class"),
+                            "Present"  // default status
+                    });
+                }
+            }
+        } catch (SQLException ex) {
+            showError("Loading students for attendance", ex);
+        }
     }
 
     private void markAttendance() {
@@ -840,11 +910,16 @@ public class Main extends JFrame {
 
         String subjectName = (String) subjectComboBox.getSelectedItem();
         Date d = (Date) dateSpinner.getValue();
-        if (subjectName == null) { JOptionPane.showMessageDialog(this, "Add subjects first."); return; }
+        int sessionNumber = (int) sessionNumberSpinner.getValue();
+
+        if (subjectName == null) {
+            JOptionPane.showMessageDialog(this, "Please select a subject.");
+            return;
+        }
 
         String findSub = "SELECT subject_id FROM subjects WHERE subject_name=?";
-        String findSession = "SELECT session_id FROM sessions WHERE session_date=? AND subject_id=?";
-        String insertSession = "INSERT INTO sessions(session_date, subject_id) VALUES(?,?)";
+        String findSession = "SELECT session_id FROM sessions WHERE session_date=? AND subject_id=? AND session_number=?";
+        String insertSession = "INSERT INTO sessions(session_date, subject_id, session_number) VALUES(?,?,?)";
         String upsertAttendance = """
                 INSERT INTO attendance(student_id, session_id, status)
                 VALUES(?,?,?)
@@ -868,13 +943,17 @@ public class Main extends JFrame {
             int sessionId;
             java.sql.Date sqlDate = new java.sql.Date(d.getTime());
             try (PreparedStatement ps = c.prepareStatement(findSession)) {
-                ps.setDate(1, sqlDate); ps.setInt(2, subjectId);
+                ps.setDate(1, sqlDate);
+                ps.setInt(2, subjectId);
+                ps.setInt(3, sessionNumber);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         sessionId = rs.getInt(1);
                     } else {
                         try (PreparedStatement ins = c.prepareStatement(insertSession, Statement.RETURN_GENERATED_KEYS)) {
-                            ins.setDate(1, sqlDate); ins.setInt(2, subjectId);
+                            ins.setDate(1, sqlDate);
+                            ins.setInt(2, subjectId);
+                            ins.setInt(3, sessionNumber);
                             ins.executeUpdate();
                             try (ResultSet g = ins.getGeneratedKeys()) {
                                 g.next(); sessionId = g.getInt(1);
@@ -888,7 +967,7 @@ public class Main extends JFrame {
                 DefaultTableModel m = (DefaultTableModel) attendanceTable.getModel();
                 for (int i = 0; i < m.getRowCount(); i++) {
                     int studentId = (int) m.getValueAt(i, 0);
-                    String status = (String) m.getValueAt(i, 4);
+                    String status = (String) m.getValueAt(i, 5); // Status is now in column 5
                     ps.setInt(1, studentId);
                     ps.setInt(2, sessionId);
                     ps.setString(3, status);
@@ -897,16 +976,31 @@ public class Main extends JFrame {
                 ps.executeBatch();
             }
             c.commit();
-            JOptionPane.showMessageDialog(this, "Attendance saved for " + new SimpleDateFormat("yyyy-MM-dd").format(d) + " (" + subjectName + ")");
+            JOptionPane.showMessageDialog(this, "Attendance saved for " +
+                    new SimpleDateFormat("yyyy-MM-dd").format(d) + " (" + subjectName + " - Class " + sessionNumber + ")");
         } catch (SQLException ex) {
             try { if (c != null) c.rollback(); } catch (SQLException e) { e.printStackTrace(); }
             showError("Marking attendance", ex);
         } finally {
-            try { if (c != null) c.setAutoCommit(true); c.close(); } catch (SQLException e) { e.printStackTrace(); }
+            try { if (c != null) { c.setAutoCommit(true); c.close(); } } catch (SQLException e) { e.printStackTrace(); }
         }
     }
 
     // --------------- Reporting ---------------
+    private void loadSubjectsForReports() {
+        reportSubjectComboBox.removeAllItems();
+        String sql = "SELECT subject_name FROM subjects ORDER BY subject_name";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                reportSubjectComboBox.addItem(rs.getString("subject_name"));
+            }
+        } catch (SQLException ex) {
+            showError("Loading subjects for reports", ex);
+        }
+    }
+
     private void generateReport() {
         String roll = reportStudentRollField.getText().trim();
         String subject = (String) reportSubjectComboBox.getSelectedItem();
