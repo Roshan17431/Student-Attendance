@@ -10,7 +10,7 @@ import java.util.Vector;
 public class Main extends JFrame {
 
     private JTabbedPane tabbedPane;
-    private JPanel loginPanel, studentPanel, attendancePanel, reportPanel, teacherPanel, subjectPanel, userPanel;
+    private JPanel loginPanel, studentPanel, attendancePanel, reportPanel, teacherPanel, subjectPanel, userPanel, classReportPanel;
 
     // Login components
     private JTextField usernameField;
@@ -62,6 +62,13 @@ public class Main extends JFrame {
     private JButton createUserBtn, deleteUserBtn;
     private JTable userTable;
     private DefaultTableModel userTableModel;
+
+    // Class-Wise Attendance Report Components
+    private JComboBox<String> classReportSubjectComboBox;
+    private JSpinner classReportFromDate, classReportToDate;
+    private JButton generateClassReportBtn;
+    private JTable classReportTable;
+    private DefaultTableModel classReportTableModel;
 
     public Main() {
         setTitle("Student Attendance System");
@@ -183,6 +190,7 @@ public class Main extends JFrame {
             userPanel = createUserPanel();
             attendancePanel = createAttendancePanel();
             reportPanel = createReportPanel();
+            classReportPanel = createClassReportPanel();
 
             tabbedPane.addTab("Student Management", studentPanel);
             tabbedPane.addTab("Teacher Management", teacherPanel);
@@ -190,12 +198,15 @@ public class Main extends JFrame {
             tabbedPane.addTab("User Management", userPanel);
             tabbedPane.addTab("Attendance", attendancePanel);
             tabbedPane.addTab("Reports", reportPanel);
+            tabbedPane.addTab("Class-Wise Reports", classReportPanel);
         } else if ("Teacher".equals(currentRole)) {
             attendancePanel = createAttendancePanel();
             reportPanel = createReportPanel();
+            classReportPanel = createClassReportPanel();
 
             tabbedPane.addTab("Attendance", attendancePanel);
             tabbedPane.addTab("Reports", reportPanel);
+            tabbedPane.addTab("Class-Wise Reports", classReportPanel);
         } else if ("Student".equals(currentRole)) {
             reportPanel = createReportPanel();
 
@@ -253,6 +264,8 @@ public class Main extends JFrame {
                 populateAttendanceTable();
             } else if (tabbedPane.getSelectedComponent() == reportPanel) {
                 // The loadSubjectsForReports method is no longer needed
+            } else if (tabbedPane.getSelectedComponent() == classReportPanel) {
+                loadSubjectsForClassReport();
             }
         });
 
@@ -511,6 +524,36 @@ public class Main extends JFrame {
 
         panel.add(top, BorderLayout.NORTH);
         panel.add(new JScrollPane(reportArea), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createClassReportPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+        classReportSubjectComboBox = new JComboBox<>();
+        classReportFromDate = new JSpinner(new SpinnerDateModel(new Date(), null, null, java.util.Calendar.DAY_OF_MONTH));
+        classReportToDate = new JSpinner(new SpinnerDateModel(new Date(), null, null, java.util.Calendar.DAY_OF_MONTH));
+        classReportFromDate.setEditor(new JSpinner.DateEditor(classReportFromDate, "yyyy-MM-dd"));
+        classReportToDate.setEditor(new JSpinner.DateEditor(classReportToDate, "yyyy-MM-dd"));
+        generateClassReportBtn = new JButton("Generate Class Report");
+
+        top.add(new JLabel("Subject:"));     top.add(classReportSubjectComboBox);
+        top.add(new JLabel("From Date:"));   top.add(classReportFromDate);
+        top.add(new JLabel("To Date:"));     top.add(classReportToDate);
+        top.add(generateClassReportBtn);
+
+        classReportTableModel = new DefaultTableModel(
+            new String[]{"Roll No", "Student Name", "Total Classes", "Present", "Absent", "Attendance %"}, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        classReportTable = new JTable(classReportTableModel);
+        
+        generateClassReportBtn.addActionListener(e -> generateClassReport());
+
+        panel.add(top, BorderLayout.NORTH);
+        panel.add(new JScrollPane(classReportTable), BorderLayout.CENTER);
+        
         return panel;
     }
 
@@ -972,6 +1015,86 @@ public class Main extends JFrame {
                 }
             }
         } catch (SQLException ex) { showError("Generating report", ex); }
+    }
+
+    // --------------- Class-Wise Attendance Report ---------------
+    private void loadSubjectsForClassReport() {
+        classReportSubjectComboBox.removeAllItems();
+        String sql = "SELECT subject_name FROM subjects ORDER BY subject_name";
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                classReportSubjectComboBox.addItem(rs.getString("subject_name"));
+            }
+        } catch (SQLException ex) {
+            showError("Loading subjects for class report", ex);
+        }
+    }
+
+    private void generateClassReport() {
+        String subject = (String) classReportSubjectComboBox.getSelectedItem();
+        Date from = (Date) classReportFromDate.getValue();
+        Date to = (Date) classReportToDate.getValue();
+
+        if (subject == null) {
+            JOptionPane.showMessageDialog(this, "Please select a subject.");
+            return;
+        }
+
+        classReportTableModel.setRowCount(0);
+
+        // SQL query for class-wise attendance (matching QUERIES.md Query #7)
+        String sql = """
+                SELECT 
+                    s.student_roll,
+                    CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                    COUNT(*) AS total_classes,
+                    SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS classes_attended,
+                    SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) AS classes_missed,
+                    ROUND(
+                        (SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) * 100.0) / 
+                        COUNT(*), 
+                        2
+                    ) AS attendance_percentage
+                FROM attendance a
+                JOIN students s ON a.student_id = s.student_id
+                JOIN sessions ses ON a.session_id = ses.session_id
+                JOIN subjects sub ON ses.subject_id = sub.subject_id
+                WHERE sub.subject_name = ?
+                  AND ses.session_date BETWEEN ? AND ?
+                GROUP BY s.student_id, s.student_roll, student_name
+                ORDER BY s.student_roll
+                """;
+
+        try (Connection c = DatabaseManager.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, subject);
+            ps.setDate(2, new java.sql.Date(from.getTime()));
+            ps.setDate(3, new java.sql.Date(to.getTime()));
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    classReportTableModel.addRow(new Object[]{
+                        rs.getString("student_roll"),
+                        rs.getString("student_name"),
+                        rs.getInt("total_classes"),
+                        rs.getInt("classes_attended"),
+                        rs.getInt("classes_missed"),
+                        String.format("%.2f%%", rs.getDouble("attendance_percentage"))
+                    });
+                }
+                
+                if (classReportTableModel.getRowCount() == 0) {
+                    JOptionPane.showMessageDialog(this, 
+                        "No attendance data found for " + subject + " between " + 
+                        new SimpleDateFormat("yyyy-MM-dd").format(from) + " and " + 
+                        new SimpleDateFormat("yyyy-MM-dd").format(to));
+                }
+            }
+        } catch (SQLException ex) {
+            showError("Generating class report", ex);
+        }
     }
 
     private void showError(String where, Exception ex) {
