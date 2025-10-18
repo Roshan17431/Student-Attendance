@@ -11,10 +11,12 @@ A comprehensive Java Swing-based desktop application for managing student attend
 - **User Management**: Create and manage user accounts with different roles
 - **Attendance Tracking**: Mark and monitor attendance for all classes
 - **Attendance Reports**: Generate comprehensive attendance reports
+- **Class-Wise Attendance Reports**: View attendance for entire class/subject showing all students at once
 
 ### Teacher Features
 - **Attendance Marking**: Mark attendance for students in their classes
 - **Attendance Reports**: View and generate student attendance reports
+- **Class-Wise Attendance Reports**: View attendance for entire class/subject showing all students at once
 
 ### Student Features
 - **View Attendance**: Students can view their own attendance records
@@ -258,6 +260,11 @@ After setting up the database with sample data, you can use these credentials:
    - Mark students as Present or Absent
    - Click "Save Attendance"
 7. **Generate Reports**: View attendance statistics by student, subject, and date range
+8. **Class-Wise Reports**: 
+   - Go to "Class-Wise Reports" tab
+   - Select subject and date range
+   - Click "Generate Class Report"
+   - View attendance for all students in that class/subject with statistics
 
 ### For Teachers
 
@@ -267,6 +274,10 @@ After setting up the database with sample data, you can use these credentials:
    - Mark students as Present or Absent
    - Save the attendance
 3. **View Reports**: Generate attendance reports for students
+4. **Class-Wise Reports**: 
+   - Go to "Class-Wise Reports" tab
+   - Select subject and date range
+   - View attendance for all students in that class/subject
 
 ### For Students
 
