@@ -238,10 +238,10 @@ QUERIES.md              | 19 KB | 582   | SQL queries (class-wise attendance)
 database_setup.sql      | 12 KB | 321   | Database setup script
 QUICKSTART.md           | 7 KB  | 264   | Quick start guide
 CONFIGURATION.md        | 14 KB | 538   | Advanced configuration
-DOCS_INDEX.md           | 11 KB | 371   | Documentation navigation
-SAMPLE_OUTPUTS.md       | 20 KB | 571   | Query output examples
+DOCS_INDEX.md           | 11 KB | 310   | Documentation navigation
+SAMPLE_OUTPUTS.md       | 20 KB | 421   | Query output examples
 
-Total Documentation: ~95 KB, 3,036 lines
+Total Documentation: ~95 KB, 2,815 lines
 
 ================================================================================
 VERIFICATION CHECKLIST
