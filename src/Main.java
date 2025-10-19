@@ -24,7 +24,7 @@ public class Main extends JFrame {
     private JLabel lblLoggedInAs;
 
     // Student Management Components
-    private JTextField firstNameField, lastNameField, rollField, studentSearchField;
+    private JTextField firstNameField, lastNameField, rollField, classField, studentSearchField;
     private JButton addStudentBtn, updateStudentBtn, deleteStudentBtn, searchStudentBtn, refreshStudentBtn;
     private JTable studentTable;
     private DefaultTableModel studentTableModel;
@@ -272,6 +272,8 @@ public class Main extends JFrame {
                         firstNameField.setText(studentTableModel.getValueAt(r, 1).toString());
                         lastNameField.setText(studentTableModel.getValueAt(r, 2).toString());
                         rollField.setText(studentTableModel.getValueAt(r, 3).toString());
+                        Object classValue = studentTableModel.getValueAt(r, 4);
+                        classField.setText(classValue != null ? classValue.toString() : "");
                     }
                 }
             });
@@ -362,11 +364,12 @@ public class Main extends JFrame {
     // ----------------- Panels -----------------
     private JPanel createStudentPanel() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        JPanel form = new JPanel(new GridLayout(4, 2, 8, 8));
+        JPanel form = new JPanel(new GridLayout(5, 2, 8, 8));
 
         firstNameField = new JTextField();
         lastNameField  = new JTextField();
         rollField      = new JTextField();
+        classField     = new JTextField();
 
         addStudentBtn    = new JButton("Add");
         updateStudentBtn = new JButton("Update");
@@ -375,6 +378,7 @@ public class Main extends JFrame {
         form.add(new JLabel("First Name:"));  form.add(firstNameField);
         form.add(new JLabel("Last Name:"));   form.add(lastNameField);
         form.add(new JLabel("Roll No:"));     form.add(rollField);
+        form.add(new JLabel("Class:"));       form.add(classField);
         form.add(addStudentBtn);              form.add(updateStudentBtn);
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -387,7 +391,7 @@ public class Main extends JFrame {
         south.add(refreshStudentBtn);
         south.add(deleteStudentBtn);
 
-        studentTableModel = new DefaultTableModel(new String[]{"ID","First Name","Last Name","Roll No."}, 0) {
+        studentTableModel = new DefaultTableModel(new String[]{"ID","First Name","Last Name","Roll No.","Class"}, 0) {
             public boolean isCellEditable(int r, int c) { return false; }
         };
         studentTable = new JTable(studentTableModel);
@@ -565,7 +569,8 @@ public class Main extends JFrame {
                         rs.getInt("student_id"),
                         rs.getString("first_name"),
                         rs.getString("last_name"),
-                        rs.getString("student_roll")
+                        rs.getString("student_roll"),
+                        rs.getString("class")
                 });
             }
         } catch (SQLException ex) {
@@ -577,16 +582,17 @@ public class Main extends JFrame {
         String f = firstNameField.getText().trim();
         String l = lastNameField.getText().trim();
         String r = rollField.getText().trim();
-        if (f.isEmpty() || l.isEmpty() || r.isEmpty()) {
+        String cls = classField.getText().trim();
+        if (f.isEmpty() || l.isEmpty() || r.isEmpty() || cls.isEmpty()) {
             JOptionPane.showMessageDialog(this, "All fields are required."); return;
         }
-        String sql = "INSERT INTO students(first_name,last_name,student_roll) VALUES(?,?,?)";
+        String sql = "INSERT INTO students(first_name,last_name,student_roll,class) VALUES(?,?,?,?)";
         try (Connection c = DatabaseManager.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, f); ps.setString(2, l); ps.setString(3, r);
+            ps.setString(1, f); ps.setString(2, l); ps.setString(3, r); ps.setString(4, cls);
             ps.executeUpdate();
             JOptionPane.showMessageDialog(this, "Student added.");
-            firstNameField.setText(""); lastNameField.setText(""); rollField.setText("");
+            firstNameField.setText(""); lastNameField.setText(""); rollField.setText(""); classField.setText("");
             loadStudents();
             populateAttendanceTable();
         } catch (SQLException ex) { showError("Adding student", ex); }
@@ -599,13 +605,14 @@ public class Main extends JFrame {
         String f = firstNameField.getText().trim();
         String l = lastNameField.getText().trim();
         String r = rollField.getText().trim();
-        if (f.isEmpty() || l.isEmpty() || r.isEmpty()) {
+        String cls = classField.getText().trim();
+        if (f.isEmpty() || l.isEmpty() || r.isEmpty() || cls.isEmpty()) {
             JOptionPane.showMessageDialog(this, "All fields are required."); return;
         }
-        String sql = "UPDATE students SET first_name=?, last_name=?, student_roll=? WHERE student_id=?";
+        String sql = "UPDATE students SET first_name=?, last_name=?, student_roll=?, class=? WHERE student_id=?";
         try (Connection c = DatabaseManager.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, f); ps.setString(2, l); ps.setString(3, r); ps.setInt(4, id);
+            ps.setString(1, f); ps.setString(2, l); ps.setString(3, r); ps.setString(4, cls); ps.setInt(5, id);
             if (ps.executeUpdate() > 0) {
                 JOptionPane.showMessageDialog(this, "Updated.");
                 loadStudents(); populateAttendanceTable();
@@ -634,20 +641,22 @@ public class Main extends JFrame {
         studentTableModel.setRowCount(0);
         String sql = """
                 SELECT * FROM students
-                WHERE first_name LIKE ? OR last_name LIKE ? OR student_roll = ?
+                WHERE first_name LIKE ? OR last_name LIKE ? OR student_roll = ? OR class LIKE ?
                 """;
         try (Connection c = DatabaseManager.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, "%" + q + "%");
             ps.setString(2, "%" + q + "%");
             ps.setString(3, q);
+            ps.setString(4, "%" + q + "%");
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     studentTableModel.addRow(new Object[]{
                             rs.getInt("student_id"),
                             rs.getString("first_name"),
                             rs.getString("last_name"),
-                            rs.getString("student_roll")
+                            rs.getString("student_roll"),
+                            rs.getString("class")
                     });
                 }
             }
