@@ -50,7 +50,7 @@ CREATE TABLE teacher_subjects (
     id INT AUTO_INCREMENT PRIMARY KEY,
     teacher_id INT NOT NULL,
     subject_id INT NOT NULL,
-    class VARCHAR(20) NOT NULL,
+    class VARCHAR(20) NOT NULL COMMENT 'Class format: S1A to S8E (Standards 1-8, Divisions A-E)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
     FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE,
@@ -64,7 +64,7 @@ CREATE TABLE students (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     student_roll VARCHAR(20) NOT NULL UNIQUE,
-    class VARCHAR(20) NOT NULL,
+    class VARCHAR(20) NOT NULL COMMENT 'Class format: S1A to S8E (Standards 1-8, Divisions A-E)',
     user_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
@@ -119,21 +119,21 @@ INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'Admin
 
 -- Insert sample students
 -- INSERT INTO students (first_name, last_name, student_roll, class, user_id) VALUES
--- ('Alice', 'Brown', 'S001', '10A', NULL),
--- ('Bob', 'Davis', 'S002', '10A', NULL),
--- ('Charlie', 'Miller', 'S003', '10B', NULL),
--- ('Diana', 'Wilson', 'S004', '10B', NULL),
--- ('Eve', 'Moore', 'S005', '10A', NULL);
+-- ('Alice', 'Brown', 'S001', 'S1A', NULL),
+-- ('Bob', 'Davis', 'S002', 'S1A', NULL),
+-- ('Charlie', 'Miller', 'S003', 'S1B', NULL),
+-- ('Diana', 'Wilson', 'S004', 'S2A', NULL),
+-- ('Eve', 'Moore', 'S005', 'S2B', NULL);
 
 -- Insert sample teacher-subject-class mappings
--- Assuming teacher_id 1 teaches Mathematics to class 10A
+-- Assuming teacher_id 1 teaches Mathematics to class S1A
 -- INSERT INTO teacher_subjects (teacher_id, subject_id, class) VALUES
--- (1, 1, '10A'),
--- (1, 1, '10B'),
--- (2, 2, '10A'),
--- (2, 3, '10A'),
--- (3, 4, '10B'),
--- (3, 5, '10B');
+-- (1, 1, 'S1A'),
+-- (1, 1, 'S1B'),
+-- (2, 2, 'S2A'),
+-- (2, 3, 'S2A'),
+-- (3, 4, 'S3A'),
+-- (3, 5, 'S3B');
 
 -- Create views for easier querying
 

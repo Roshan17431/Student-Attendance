@@ -24,17 +24,20 @@ public class Main extends JFrame {
     private JLabel lblLoggedInAs;
 
     // Student Management Components
-    private JTextField firstNameField, lastNameField, rollField, classField, studentSearchField;
+    private JTextField firstNameField, lastNameField, rollField, studentSearchField;
+    private JComboBox<String> classComboBox;
     private JButton addStudentBtn, updateStudentBtn, deleteStudentBtn, searchStudentBtn, refreshStudentBtn;
     private JTable studentTable;
     private DefaultTableModel studentTableModel;
 
     // Attendance Management Components
     private JComboBox<String> subjectComboBox;
+    private JComboBox<String> classFilterComboBox;
     private JSpinner dateSpinner;
     private JSpinner sessionNumberSpinner;
     private JTable attendanceTable;
     private JButton markAttendanceBtn;
+    private JButton filterByClassBtn;
     private DefaultTableModel attendanceTableModel;
 
     // Attendance Reporting Components
@@ -239,11 +242,16 @@ public class Main extends JFrame {
             loadSubjects();
             loadUsers();
         } else if ("Teacher".equals(currentRole)) {
-            loadTeacherSubjects(); // Load teacher's assigned subjects
+            loadSubjectsForReports(); // Load all subjects for teachers
+            loadTeacherSubjects(); // Try to load assigned subjects (if configured)
+        } else if ("Student".equals(currentRole)) {
+            loadSubjectsForReports(); // Load all subjects for students
         }
 
-        // Load common data
-        loadSubjectsForReports();
+        // Load common data for reports
+        if (!"Student".equals(currentRole) && !"Teacher".equals(currentRole)) {
+            loadSubjectsForReports();
+        }
 
         // Listeners for populating tables when a tab is selected
         tabbedPane.addChangeListener(e -> {
@@ -273,7 +281,9 @@ public class Main extends JFrame {
                         lastNameField.setText(studentTableModel.getValueAt(r, 2).toString());
                         rollField.setText(studentTableModel.getValueAt(r, 3).toString());
                         Object classValue = studentTableModel.getValueAt(r, 4);
-                        classField.setText(classValue != null ? classValue.toString() : "");
+                        if (classValue != null) {
+                            classComboBox.setSelectedItem(classValue.toString());
+                        }
                     }
                 }
             });
@@ -334,15 +344,34 @@ public class Main extends JFrame {
             stmt.setInt(1, currentUserId);
             ResultSet rs = stmt.executeQuery();
 
+            boolean hasAssignedSubjects = false;
             while (rs.next()) {
                 subjectComboBox.addItem(rs.getString("subject_name"));
+                hasAssignedSubjects = true;
             }
 
-            if (subjectComboBox.getItemCount() == 0) {
-                JOptionPane.showMessageDialog(this, "No subjects assigned to you. Please contact administrator.");
+            // If no assigned subjects found, load all subjects
+            if (!hasAssignedSubjects) {
+                String allSubjectsSql = "SELECT subject_name FROM subjects ORDER BY subject_name";
+                PreparedStatement allStmt = conn.prepareStatement(allSubjectsSql);
+                ResultSet allRs = allStmt.executeQuery();
+                while (allRs.next()) {
+                    subjectComboBox.addItem(allRs.getString("subject_name"));
+                }
             }
         } catch (SQLException ex) {
             showError("Loading teacher subjects", ex);
+            // On error, try to load all subjects
+            try (Connection conn = DatabaseManager.getConnection()) {
+                String allSubjectsSql = "SELECT subject_name FROM subjects ORDER BY subject_name";
+                PreparedStatement stmt = conn.prepareStatement(allSubjectsSql);
+                ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    subjectComboBox.addItem(rs.getString("subject_name"));
+                }
+            } catch (SQLException e) {
+                showError("Loading all subjects", e);
+            }
         }
     }
 
@@ -369,7 +398,16 @@ public class Main extends JFrame {
         firstNameField = new JTextField();
         lastNameField  = new JTextField();
         rollField      = new JTextField();
-        classField     = new JTextField();
+        
+        // Create class dropdown with S1-S8 and A-E divisions
+        String[] classes = new String[40]; // 8 standards * 5 divisions = 40
+        int index = 0;
+        for (int std = 1; std <= 8; std++) {
+            for (char div = 'A'; div <= 'E'; div++) {
+                classes[index++] = "S" + std + div;
+            }
+        }
+        classComboBox = new JComboBox<>(classes);
 
         addStudentBtn    = new JButton("Add");
         updateStudentBtn = new JButton("Update");
@@ -378,7 +416,7 @@ public class Main extends JFrame {
         form.add(new JLabel("First Name:"));  form.add(firstNameField);
         form.add(new JLabel("Last Name:"));   form.add(lastNameField);
         form.add(new JLabel("Roll No:"));     form.add(rollField);
-        form.add(new JLabel("Class:"));       form.add(classField);
+        form.add(new JLabel("Class:"));       form.add(classComboBox);
         form.add(addStudentBtn);              form.add(updateStudentBtn);
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -505,11 +543,25 @@ public class Main extends JFrame {
 
         sessionNumberSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
 
+        // Create class filter dropdown with S1-S8 and A-E divisions
+        String[] classesForFilter = new String[41]; // "All" + 40 classes
+        classesForFilter[0] = "All Classes";
+        int index = 1;
+        for (int std = 1; std <= 8; std++) {
+            for (char div = 'A'; div <= 'E'; div++) {
+                classesForFilter[index++] = "S" + std + div;
+            }
+        }
+        classFilterComboBox = new JComboBox<>(classesForFilter);
+        
+        filterByClassBtn = new JButton("Filter");
         markAttendanceBtn = new JButton("Save Attendance for this Session");
 
         top.add(new JLabel("Subject:")); top.add(subjectComboBox);
         top.add(new JLabel("Date:"));    top.add(dateSpinner);
         top.add(new JLabel("Class No:")); top.add(sessionNumberSpinner);
+        top.add(new JLabel("Filter by Class:")); top.add(classFilterComboBox);
+        top.add(filterByClassBtn);
         top.add(markAttendanceBtn);
 
         attendanceTable = new JTable(new DefaultTableModel(new String[]{"Student ID","First Name","Last Name","Roll No.","Class","Status"}, 0) {
@@ -524,6 +576,7 @@ public class Main extends JFrame {
         }
 
         markAttendanceBtn.addActionListener(e -> markAttendance());
+        filterByClassBtn.addActionListener(e -> populateAttendanceTable());
 
         panel.add(top, BorderLayout.NORTH);
         panel.add(new JScrollPane(attendanceTable), BorderLayout.CENTER);
@@ -582,8 +635,8 @@ public class Main extends JFrame {
         String f = firstNameField.getText().trim();
         String l = lastNameField.getText().trim();
         String r = rollField.getText().trim();
-        String cls = classField.getText().trim();
-        if (f.isEmpty() || l.isEmpty() || r.isEmpty() || cls.isEmpty()) {
+        String cls = (String) classComboBox.getSelectedItem();
+        if (f.isEmpty() || l.isEmpty() || r.isEmpty() || cls == null) {
             JOptionPane.showMessageDialog(this, "All fields are required."); return;
         }
         String sql = "INSERT INTO students(first_name,last_name,student_roll,class) VALUES(?,?,?,?)";
@@ -592,7 +645,8 @@ public class Main extends JFrame {
             ps.setString(1, f); ps.setString(2, l); ps.setString(3, r); ps.setString(4, cls);
             ps.executeUpdate();
             JOptionPane.showMessageDialog(this, "Student added.");
-            firstNameField.setText(""); lastNameField.setText(""); rollField.setText(""); classField.setText("");
+            firstNameField.setText(""); lastNameField.setText(""); rollField.setText(""); 
+            classComboBox.setSelectedIndex(0);
             loadStudents();
             populateAttendanceTable();
         } catch (SQLException ex) { showError("Adding student", ex); }
@@ -605,8 +659,8 @@ public class Main extends JFrame {
         String f = firstNameField.getText().trim();
         String l = lastNameField.getText().trim();
         String r = rollField.getText().trim();
-        String cls = classField.getText().trim();
-        if (f.isEmpty() || l.isEmpty() || r.isEmpty() || cls.isEmpty()) {
+        String cls = (String) classComboBox.getSelectedItem();
+        if (f.isEmpty() || l.isEmpty() || r.isEmpty() || cls == null) {
             JOptionPane.showMessageDialog(this, "All fields are required."); return;
         }
         String sql = "UPDATE students SET first_name=?, last_name=?, student_roll=?, class=? WHERE student_id=?";
@@ -865,33 +919,22 @@ public class Main extends JFrame {
         }
 
         String sql;
-        if ("Teacher".equals(currentRole)) {
-            // For teachers: only show students from their assigned classes
-            sql = """
-                SELECT DISTINCT s.student_id, s.first_name, s.last_name, s.student_roll, s.class
-                FROM students s
-                JOIN teacher_subjects ts ON s.class = ts.class
-                JOIN teachers t ON ts.teacher_id = t.teacher_id
-                JOIN subjects sub ON ts.subject_id = sub.subject_id
-                WHERE t.user_id = ? AND sub.subject_name = ?
-                ORDER BY s.student_roll
-                """;
+        String selectedClass = (String) classFilterComboBox.getSelectedItem();
+        boolean filterByClass = selectedClass != null && !selectedClass.equals("All Classes");
+        
+        if (filterByClass) {
+            // Filter by selected class
+            sql = "SELECT student_id, first_name, last_name, student_roll, class FROM students WHERE class = ? ORDER BY student_roll";
         } else {
-            // For admin: show all students
-            sql = "SELECT student_id, first_name, last_name, student_roll, class FROM students ORDER BY student_id";
+            // Show all students
+            sql = "SELECT student_id, first_name, last_name, student_roll, class FROM students ORDER BY class, student_roll";
         }
 
         try (Connection c = DatabaseManager.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
 
-            if ("Teacher".equals(currentRole)) {
-                String selectedSubject = (String) subjectComboBox.getSelectedItem();
-                if (selectedSubject == null || selectedSubject.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "Please select a subject first.");
-                    return;
-                }
-                ps.setInt(1, currentUserId);
-                ps.setString(2, selectedSubject);
+            if (filterByClass) {
+                ps.setString(1, selectedClass);
             }
 
             try (ResultSet rs = ps.executeQuery()) {

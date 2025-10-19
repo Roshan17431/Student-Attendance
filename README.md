@@ -138,7 +138,7 @@ For complete schema details, see [database_schema.sql](database_schema.sql)
    - First Name
    - Last Name
    - Roll Number
-   - **Class** (e.g., "10A", "10B", "11A")
+   - **Class** - Select from dropdown (S1A to S8E: Standards 1-8, Divisions A-E)
 3. Click "Add" to create a new student
 4. Select a student from the table to update or delete
 
@@ -149,9 +149,13 @@ For complete schema details, see [database_schema.sql](database_schema.sql)
    - Subject from the dropdown
    - Date using the date picker
    - Class Number (session number for that day)
-3. The table will populate with students from the relevant class
-4. Mark each student as "Present" or "Absent"
-5. Click "Save Attendance for this Session"
+   - **Filter by Class** - Select a specific class (S1A-S8E) or "All Classes"
+3. Click "Filter" to show students from the selected class
+4. The table will populate with students
+5. Mark each student as "Present" or "Absent"
+6. Click "Save Attendance for this Session"
+
+**Note**: Teachers can mark attendance for any class. If teacher-subject-class mappings are configured in the database, teachers will see their assigned subjects; otherwise, all subjects are available.
 
 ### Generating Reports
 
@@ -168,19 +172,26 @@ For complete schema details, see [database_schema.sql](database_schema.sql)
 
 ## Class-Wise Attendance Feature
 
-The system now properly supports class-wise attendance tracking:
+The system supports class-wise attendance tracking with a standardized class format:
 
-- Each student is assigned to a specific class
-- Teachers can be assigned to teach specific subjects to specific classes
-- When marking attendance, only students from the teacher's assigned class are shown
-- This ensures teachers only mark attendance for their own classes
+- **Class Format**: S1A to S8E
+  - Standards: 1-8 (S1, S2, S3, S4, S5, S6, S7, S8)
+  - Divisions: A-E (A, B, C, D, E)
+  - Examples: S1A, S2B, S5C, S8E
+
+- Each student is assigned to a specific class using a dropdown menu
+- Teachers can filter students by class when marking attendance
+- The "Filter by Class" dropdown allows viewing all students or filtering by a specific class
+- Attendance is organized by class for easy management
 
 ### Example Workflow
 
-1. Create a student with class "10A"
-2. Create a teacher
-3. Assign the teacher to teach "Mathematics" to class "10A" (via teacher_subjects table)
-4. When the teacher logs in and marks attendance for Mathematics, they will only see students from class "10A"
+1. Admin creates a student and assigns them to class "S1A"
+2. Teacher logs in and selects a subject
+3. Teacher selects "S1A" from the class filter dropdown
+4. Only students from class S1A are displayed
+5. Teacher marks attendance for that class
+6. Attendance is saved and can be reported later
 
 ## Troubleshooting
 
@@ -242,7 +253,15 @@ For issues or questions:
 
 ## Changelog
 
-### Version 2.0 (Current)
+### Version 2.1 (Current)
+- ✅ Fixed subject selection for teachers and students
+- ✅ Changed class format to S1-S8 with divisions A-E (S1A, S1B, etc.)
+- ✅ Added class filter dropdown in attendance panel
+- ✅ Teachers can now mark attendance for any class
+- ✅ Class dropdown for student management (40 classes total)
+- ✅ Improved subject loading for all user roles
+
+### Version 2.0
 - ✅ Fixed class-wise attendance functionality
 - ✅ Added `class` field to students table and UI
 - ✅ Created comprehensive database schema with all tables

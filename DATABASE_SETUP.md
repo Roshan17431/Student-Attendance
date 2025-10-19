@@ -63,7 +63,7 @@ Add the JAR file to your project's classpath.
 3. **students** - Student information
    - `student_id` (PK)
    - `first_name`, `last_name`, `student_roll`
-   - `class` - **Important**: The class the student belongs to
+   - `class` - **Format: S1A to S8E (Standards 1-8, Divisions A-E)**
    - `user_id` (FK to users)
 
 4. **subjects** - Course/subject information
@@ -73,7 +73,7 @@ Add the JAR file to your project's classpath.
 5. **teacher_subjects** - Maps teachers to subjects and classes
    - `teacher_id` (FK to teachers)
    - `subject_id` (FK to subjects)
-   - `class` - The class where this teacher teaches this subject
+   - `class` - The class where this teacher teaches this subject (Format: S1A to S8E)
 
 6. **sessions** - Class session information
    - `session_id` (PK)
@@ -90,10 +90,13 @@ Add the JAR file to your project's classpath.
 ## Key Features
 
 ### Class-Wise Attendance
-The system now properly supports **class-wise attendance**:
-- Each student belongs to a specific class (e.g., "10A", "10B")
-- Teachers can be assigned to teach specific subjects to specific classes
-- When marking attendance, only students from the relevant class(es) are shown
+The system now properly supports **class-wise attendance** with standardized class format:
+- Class format: **S1A to S8E** (Standards 1-8, Divisions A-E)
+- Each student belongs to a specific class using a dropdown selector
+- Teachers can filter students by class when marking attendance
+- The attendance panel includes a "Filter by Class" dropdown
+- Teachers can mark attendance for any class
+- All subjects are available to teachers for marking attendance
 
 ### Views
 Two database views are created for easy reporting:
