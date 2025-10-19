@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # Student Attendance System - Compile and Run Script
+# Note: This script is for Linux/macOS. Windows users should use compile_and_run.bat
+# or manually compile: javac -cp "mysql-connector-j-8.0.33.jar;." -d out src\*.java
+#                 run: java -cp "mysql-connector-j-8.0.33.jar;out" Main
 
 echo "===================================="
 echo "Student Attendance System"

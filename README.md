@@ -51,20 +51,44 @@ For detailed database setup instructions, see [DATABASE_SETUP.md](DATABASE_SETUP
 
 ### 2. Compile and Run
 
+**Option A: Using the automated script**
+
+For Linux/macOS:
+```bash
+./compile_and_run.sh
+```
+
+For Windows:
+```cmd
+compile_and_run.bat
+```
+
+**Option B: Manual compilation**
+
 1. Download MySQL JDBC Driver:
    ```bash
    wget https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar
    ```
 
 2. Compile the project:
-   ```bash
-   javac -cp "mysql-connector-j-8.0.33.jar:." -d out src/*.java
-   ```
+   - Linux/macOS:
+     ```bash
+     javac -cp "mysql-connector-j-8.0.33.jar:." -d out src/*.java
+     ```
+   - Windows:
+     ```cmd
+     javac -cp "mysql-connector-j-8.0.33.jar;." -d out src\*.java
+     ```
 
 3. Run the application:
-   ```bash
-   java -cp "mysql-connector-j-8.0.33.jar:out" Main
-   ```
+   - Linux/macOS:
+     ```bash
+     java -cp "mysql-connector-j-8.0.33.jar:out" Main
+     ```
+   - Windows:
+     ```cmd
+     java -cp "mysql-connector-j-8.0.33.jar;out" Main
+     ```
 
 ### 3. Login
 
