@@ -11,12 +11,12 @@ If you haven't already, install MySQL Server on your system.
 
 ### 2. Configure Database Connection
 Update the database connection settings in `src/DatabaseManager.java`:
-- **Database URL**: `jdbc:mysql://localhost:3306/student4`
+- **Database URL**: `jdbc:mysql://localhost:3306/student6`
 - **Username**: `root` (or your MySQL username)
 - **Password**: `roshan17` (or your MySQL password)
 
 ```java
-private static final String URL = "jdbc:mysql://localhost:3306/student4";
+private static final String URL = "jdbc:mysql://localhost:3306/student6";
 private static final String USER = "root";
 private static final String PASSWORD = "roshan17";
 ```
@@ -109,7 +109,7 @@ Two database views are created for easy reporting:
 If you get a connection error:
 1. Verify MySQL is running: `sudo service mysql status`
 2. Check username and password in `DatabaseManager.java`
-3. Ensure database `student4` exists: `SHOW DATABASES;`
+3. Ensure database `student6` exists: `SHOW DATABASES;`
 
 ### JDBC Driver Not Found
 If you see "JDBC Driver not found":

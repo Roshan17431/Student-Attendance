@@ -1,9 +1,10 @@
 -- Student Attendance System Database Schema
 -- MySQL Database Creation Script
+-- Database Name: student6
 
 -- Create the database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS student4;
-USE student4;
+CREATE DATABASE IF NOT EXISTS student6;
+USE student6;
 
 -- Drop tables if they exist (in reverse order of dependencies)
 DROP TABLE IF EXISTS attendance;
